@@ -4,76 +4,69 @@ import matplotlib.pyplot
 
 class NeuralNetwork:
     """
-    Neural Network designed to find vertical vs. horizontal lines.
+    Neural Network with multi hidden layers.
     """
 
-    def __init__(self, inputnodes, hiddennodes, outputnodes, learningrate):
+    def __init__(self, inputnodes, hiddenlayers, outputnodes, learningrate):
         # Set constants
-        self.inodes = inputnodes
-        self.hnodes = hiddennodes
-        self.onodes = outputnodes
+
+        self.layers = [inputnodes] + hiddenlayers + [outputnodes]
+        self.weights = []
+
         self.lr = learningrate
+
+        # Generate weight matrices for each layer-to-layer
+        for i, layer in enumerate(self.layers[1:]):
+            self.weights.append(numpy.random.normal(0.0, pow(self.layers[i], -0.5), (layer, self.layers[i])))
 
         # Set activation function
         self.activation_function = lambda x: scipy.special.expit(x)
-
-        # Create weight matrices
-        self.wih = numpy.random.normal(0.0, pow(self.inodes, -0.5), (self.hnodes, self.inodes))
-        self.who = numpy.random.normal(0.0, pow(self.hnodes, -0.5), (self.onodes, self.hnodes))
 
     def train(self, inputs_list, targets_list):
         # Convert the inputs list into a 2d array
         inputs = numpy.array(inputs_list, ndmin=2).T
         targets = numpy.array(targets_list, ndmin=2).T
+        outputs = [inputs]
 
-        # Calculate signals in and out of hidden layer
-        hidden_inputs = numpy.dot(self.wih, inputs)
-        hidden_outputs = self.activation_function(hidden_inputs)
+        for weights in self.weights:
+            weighted_inputs = numpy.dot(weights, outputs[-1])
+            outputs.append(self.activation_function(weighted_inputs))
 
-        # Calculate signals in and out of final layer
-        final_inputs = numpy.dot(self.who, hidden_outputs)
-        final_outputs = self.activation_function(final_inputs)
+        
+        output_errors = targets - outputs[-1]
+        errors = [output_errors]
 
-        # Find error (target-actual)
-        output_errors = targets - final_outputs
+        for i, output in enumerate(reversed(outputs[1:])):
 
-        # Find hidden layer error (output_error split by weight recombined at nodes)
-        hidden_errors = numpy.dot(self.who.T, output_errors)
-
-        # Update weights hidden -> output
-        self.who += self.lr * numpy.dot((output_errors * final_outputs * (1 - final_outputs)), numpy.transpose(hidden_outputs))
-
-        # Update weights input -> hidden
-        self.wih += self.lr * numpy.dot((hidden_errors * hidden_outputs * (1 - hidden_outputs)), numpy.transpose(inputs))
+            errors.append(numpy.dot(self.weights[-(i+1)].T, errors[i]))
+            x = self.lr * numpy.dot((errors[-2] * output * (1 - output)), numpy.transpose(outputs[-(i+2)]))
+            self.weights[-(i+1)] += x
 
     def query(self, inputs_list):
         # Convert the inputs list into a 2d array
         inputs = numpy.array(inputs_list, ndmin=2).T
+        outputs = [inputs]
 
-        # Calculate signals in and out of hidden layer
-        hidden_inputs = numpy.dot(self.wih, inputs)
-        hidden_outputs = self.activation_function(hidden_inputs)
+        for weights in self.weights:
+            weighted_inputs = numpy.dot(weights, outputs[-1])
+            outputs.append(self.activation_function(weighted_inputs))
 
-        # Calculate signals in and out of final layer
-        final_inputs = numpy.dot(self.who, hidden_outputs)
-        final_outputs = self.activation_function(final_inputs)
-
-        return final_outputs
+        return outputs[-1]
 
 
 def main():
     # Set constants
     input_nodes = 784
-    hidden_nodes = 100
+    hidden_layers = [150, 150]
     output_nodes = 10
     learning_rate = .3
 
     # Create neural network
     global n
-    n = NeuralNetwork(input_nodes, hidden_nodes, output_nodes, learning_rate)
+    n = NeuralNetwork(input_nodes, hidden_layers, output_nodes, learning_rate)
 
     # Open and parse training data into input nodes
-    training_data_file = open("mnist_dataset/mnist_train.csv", 'r')
+    training_data_file = open("homemade_snn/mnist_dataset/mnist_train.csv", 'r')
     training_data_list = training_data_file.readlines()
     training_data_file.close()
 
@@ -95,7 +88,7 @@ def main():
         n.train(scaled_input, targets)
 
     # Test the neural network
-    test_data_file = open("mnist_dataset/mnist_test.csv", "r")
+    test_data_file = open("homemade_snn/mnist_dataset/mnist_test.csv", "r")
     test_data_list = test_data_file.readlines()
     test_data_file.close()
 
